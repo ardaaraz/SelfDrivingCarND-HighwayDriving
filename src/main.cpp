@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
+#include "param.h"
 
 // for convenience
 using nlohmann::json;
@@ -36,8 +37,6 @@ int main() {
   double lane_ego = 1.0;
   // Define a target velocity for ego
   double ref_vel = 0.0; //m/s
-  // Define speed limit as target velocity
-  double target_vel = 49.5 * 0.44704; //m/s
 
   string line;
   while (getline(in_map_, line)) {
@@ -59,7 +58,7 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&lane_ego, &ref_vel, &target_vel,
+  h.onMessage([&lane_ego, &ref_vel,
                &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -118,16 +117,16 @@ int main() {
           // Get adjusted velocity for avoiding collision
           vector<double> ego_vehicle = {car_x, car_y, car_yaw, car_speed, car_s, car_d, lane_ego};
           
-          double adjusted_vel = adjustEgoTargetVel(ego_vehicle, sensor_fusion, prev_size, target_vel);
+          double adjusted_vel = adjustEgoTargetVel(ego_vehicle, sensor_fusion, prev_size, TARGET_VEL);
           std::cout << lane_ego << std::endl;
           // Adjust ego speed according to predictions
           if(adjusted_vel < ref_vel)
           {
-            ref_vel -= 0.2; //Increase reference velocity according to acceleration limt (10 m/s^2)
+            ref_vel -= ACC_LIM * 0.02; //Increase reference velocity according to acceleration limt (10 m/s^2)
           }
           if(adjusted_vel > ref_vel)
           {
-            ref_vel += 0.2; //Increase reference velocity according to deceleration limt (-10 m/s^2)
+            ref_vel += ACC_LIM * 0.02; //Increase reference velocity according to deceleration limt (-10 m/s^2)
           }
           std::cout << ref_vel << std::endl;
           // TRAJECTORY GENERATION
@@ -211,8 +210,7 @@ int main() {
           double x_add_on = 0.0;
 
           // Fill the rest waypoints 
-          int way_point_num = 50; // Number of waypoints
-          for(int i = 0; i < way_point_num - prev_size; i++)
+          for(int i = 0; i < WAY_POINT_NUM - prev_size; i++)
           {
             double N = target_dist/(ref_vel*0.02);
             double x_point = x_add_on + (target_x/N);
