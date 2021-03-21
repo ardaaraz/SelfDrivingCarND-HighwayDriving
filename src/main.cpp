@@ -7,6 +7,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
 #include "json.hpp"
+#include "spline.h"
 
 // for convenience
 using nlohmann::json;
@@ -97,8 +98,122 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
+          // PARAMETERS
 
+          // Define initial ego lane
+          int lane_ego = 1;
+          // Define a target velocity for ego
+          double target_vel = 49.5 * 0.44704; //m/s
 
+          // TRAJECTORY GENERATION
+          
+          // Previos path size
+          int prev_size = previous_path_x.size();
+
+          // Spline x-y coordinates
+          vector<double> splinepts_x;
+          vector<double> splinepts_y;
+
+          // Reference x, y & yaw
+          double ref_x   = car_x;
+          double ref_y   = car_y;
+          double ref_yaw = deg2rad(car_yaw);
+
+          // Check previous path size: If the previous path is almost empty use the car states as starting reference
+          if(prev_size < 2)
+          {
+            // Use two points to generate path tangent to the car
+            splinepts_x.push_back(car_x - cos(car_yaw));
+            splinepts_y.push_back(car_y - sin(car_yaw));
+
+            splinepts_x.push_back(car_x);
+            splinepts_y.push_back(car_y);
+          }
+          // Use the previous path to generate reference
+          else
+          {
+            // Update reference x,y & yaw
+            ref_x             = previous_path_x[prev_size-1];
+            ref_y             = previous_path_y[prev_size-1];
+            double ref_x_prev = previous_path_x[prev_size-2];
+            double ref_y_prev = previous_path_y[prev_size-2];
+            ref_yaw           = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
+
+            // Use two points to generate path tangent to the car
+            splinepts_x.push_back(ref_x_prev);
+            splinepts_y.push_back(ref_y_prev);
+
+            splinepts_x.push_back(ref_x);
+            splinepts_y.push_back(ref_y);
+          }
+
+          // In FreNet add 3 waypoints which are evenly 30 m spaced points ahead of the starting refence point
+          vector<double> next_wp0 = getXY(car_s+30, (2+4*lane_ego), map_waypoints_s,map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s+60, (2+4*lane_ego), map_waypoints_s,map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s+90, (2+4*lane_ego), map_waypoints_s,map_waypoints_x, map_waypoints_y);
+
+          splinepts_x.push_back(next_wp0[0]);
+          splinepts_x.push_back(next_wp1[0]);
+          splinepts_x.push_back(next_wp2[0]);
+
+          splinepts_y.push_back(next_wp0[1]);
+          splinepts_y.push_back(next_wp1[1]);
+          splinepts_y.push_back(next_wp2[1]);
+
+          // Shift & rotate
+          for(int i = 0; i < splinepts_x.size(); i++)
+          {
+            double shift_x = splinepts_x[i] - ref_x;
+            double shift_y = splinepts_y[i] - ref_y;
+            
+            splinepts_x[i] = shift_x * cos(-ref_yaw) - shift_y * sin(-ref_yaw);
+            splinepts_y[i] = shift_x * sin(-ref_yaw) + shift_y * cos(-ref_yaw);
+
+          }
+
+          // Create a spline instance
+          tk::spline s;
+          // Set spline x-y points
+          s.set_points(splinepts_x, splinepts_y);
+          
+          // Create trajectory x-y points starting from previous path points
+          for(int i = 0; i < prev_size; i++)
+          {
+            next_x_vals.push_back(previous_path_x[i]);
+            next_y_vals.push_back(previous_path_y[i]);
+          }
+          // Create way points so that ego vehicle move at desired velocity
+          double target_x    = 30.0;
+          double target_y    = s(target_x);
+          double target_dist = distance(0.0, 0.0, target_x, target_y); 
+          
+          double x_add_on = 0.0;
+
+          // Fill the rest waypoints 
+          int way_point_num = 50; // Number of waypoints
+          for(int i = 0; i < way_point_num - prev_size; i++)
+          {
+            double N = target_dist/(target_vel*0.02);
+            double x_point = x_add_on + (target_x/N);
+            double y_point = s(x_point);
+
+            x_add_on = x_point;
+
+            double x_ref = x_point;
+            double y_ref = y_point;
+
+            // Reverse rotate & shift
+            x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
+            y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
+
+            x_point += ref_x;
+            y_point += ref_y;
+
+            // Fill the trajectory waypoints
+            next_x_vals.push_back(x_point);
+            next_y_vals.push_back(y_point);
+          }
+          //END
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
