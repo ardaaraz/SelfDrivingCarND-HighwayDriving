@@ -154,4 +154,38 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   return {x,y};
 }
 
+//Adjust ego vehicle speed according to sensor fusion data
+double adjustEgoTargetVel(const vector<double> &ego_vehicle, 
+                          const vector<vector<double>> &sensor_fusion,
+                          const int prev_size, 
+                          const double target_vel)
+{
+  // Define safety distance to avoid collision
+  double safe_dist = 30.0;
+  // Define adjusted target speed for 
+  double adjusted_vel = target_vel;
+  // Adjust ego vehicle speed using sensor fusion info
+  for(int i = 0; i < sensor_fusion.size(); i++)
+  {
+    double vehicle_d = sensor_fusion[i][6]; //Other vehicles d location
+    // Check another car exist in ego lane
+    if(vehicle_d < (2+ego_vehicle[6]*4+2) && vehicle_d > (2+ego_vehicle[6]*4-2))
+    {
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle and less than safe distance
+      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < safe_dist))
+      {
+        adjusted_vel = vehicle_speed;
+      }
+    }
+  }
+  return adjusted_vel;
+}
 #endif  // HELPERS_H

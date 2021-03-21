@@ -30,6 +30,14 @@ int main() {
   double max_s = 6945.554;
 
   std::ifstream in_map_(map_file_.c_str(), std::ifstream::in);
+  // PARAMETERS
+
+  // Define initial ego lane
+  double lane_ego = 1.0;
+  // Define a target velocity for ego
+  double ref_vel = 0.0; //m/s
+  // Define speed limit as target velocity
+  double target_vel = 49.5 * 0.44704; //m/s
 
   string line;
   while (getline(in_map_, line)) {
@@ -51,7 +59,8 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+  h.onMessage([&lane_ego, &ref_vel, &target_vel,
+               &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
@@ -98,18 +107,30 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
-          // PARAMETERS
-
-          // Define initial ego lane
-          int lane_ego = 1;
-          // Define a target velocity for ego
-          double target_vel = 49.5 * 0.44704; //m/s
-
-          // TRAJECTORY GENERATION
+          // PREDICTION
           
           // Previos path size
           int prev_size = previous_path_x.size();
-
+          if(prev_size > 0)
+          {
+            car_s = end_path_s;
+          }
+          // Get adjusted velocity for avoiding collision
+          vector<double> ego_vehicle = {car_x, car_y, car_yaw, car_speed, car_s, car_d, lane_ego};
+          
+          double adjusted_vel = adjustEgoTargetVel(ego_vehicle, sensor_fusion, prev_size, target_vel);
+          std::cout << lane_ego << std::endl;
+          // Adjust ego speed according to predictions
+          if(adjusted_vel < ref_vel)
+          {
+            ref_vel -= 0.2; //Increase reference velocity according to acceleration limt (10 m/s^2)
+          }
+          if(adjusted_vel > ref_vel)
+          {
+            ref_vel += 0.2; //Increase reference velocity according to deceleration limt (-10 m/s^2)
+          }
+          std::cout << ref_vel << std::endl;
+          // TRAJECTORY GENERATION
           // Spline x-y coordinates
           vector<double> splinepts_x;
           vector<double> splinepts_y;
@@ -193,7 +214,7 @@ int main() {
           int way_point_num = 50; // Number of waypoints
           for(int i = 0; i < way_point_num - prev_size; i++)
           {
-            double N = target_dist/(target_vel*0.02);
+            double N = target_dist/(ref_vel*0.02);
             double x_point = x_add_on + (target_x/N);
             double y_point = s(x_point);
 
