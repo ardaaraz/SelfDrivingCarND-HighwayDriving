@@ -13,4 +13,13 @@
 /** @brief Acceleration Limit for the highway */
 #define ACC_LIM 10
 
+/** @brief Safe distance to avoid collision */
+#define SAFE_DIST 30
+
+/** @brief Penalty for slow lane */
+#define VELOCITY_COST_GAIN 1e3
+
+/** @brief Penalty for distance between vehicles lane */
+#define DIST_COST_GAIN 1e4
+
 #endif

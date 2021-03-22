@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string>
 #include <vector>
+#include "param.h"
 
 // for convenience
 using std::string;
@@ -157,13 +158,10 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 //Adjust ego vehicle speed according to sensor fusion data
 double adjustEgoTargetVel(const vector<double> &ego_vehicle, 
                           const vector<vector<double>> &sensor_fusion,
-                          const int prev_size, 
-                          const double target_vel)
+                          const int prev_size)
 {
-  // Define safety distance to avoid collision
-  double safe_dist = 30.0;
-  // Define adjusted target speed for 
-  double adjusted_vel = target_vel;
+  // Define adjusted target speed for ego vehicle
+  double adjusted_vel = TARGET_VEL;
   // Adjust ego vehicle speed using sensor fusion info
   for(int i = 0; i < sensor_fusion.size(); i++)
   {
@@ -180,12 +178,193 @@ double adjustEgoTargetVel(const vector<double> &ego_vehicle,
       vehicle_s += ((double)prev_size*0.02*vehicle_speed);
 
       // Check the vehicle which is in the ego lane s value grater than ego vehicle and less than safe distance
-      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < safe_dist))
+      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < SAFE_DIST))
       {
         adjusted_vel = vehicle_speed;
       }
     }
   }
   return adjusted_vel;
+}
+
+// Cost function for speed, i.e vote for fastest lane
+vector<double> speedCostForLanes(const vector<double> &ego_vehicle, 
+                         const vector<vector<double>> &sensor_fusion,
+                         const int prev_size)
+{
+  // Slowest vehicles on the lanes
+  double id_slowest_right;
+  double id_slowest_center;
+  double id_slowest_left;
+
+  double speed_slowest_right  = TARGET_VEL;
+  double speed_slowest_center = TARGET_VEL;
+  double speed_slowest_left   = TARGET_VEL; 
+
+  // Cost for velocity for each lane
+  vector<double> velocity_cost{0.0, 0.0, 0.0}; // {left_lane, center_lane, right_lane}
+
+  for(int i = 0; i < sensor_fusion.size(); i++)
+  {
+    double vehicle_d = sensor_fusion[i][6];
+    // Determine the lane of vehicle
+    if(vehicle_d < 4 && vehicle_d > 0) //Left lane
+    {
+      double vehicle_id    = sensor_fusion[i][0];
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle
+      if(vehicle_s > ego_vehicle[4])
+      {
+        // Check the vehicle is the slowest one of its lane
+        if(vehicle_speed<speed_slowest_left)
+        {
+          speed_slowest_left = vehicle_speed;
+          id_slowest_left    = vehicle_id;
+        }
+      }
+    }
+    if(vehicle_d < 8 && vehicle_d > 4) //Center lane
+    {
+      double vehicle_id    = sensor_fusion[i][0];
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle
+      if(vehicle_s > ego_vehicle[4])
+      {
+        // Check the vehicle is the slowest one of its lane
+        if(vehicle_speed<speed_slowest_center)
+        {
+          speed_slowest_center = vehicle_speed;
+          id_slowest_center    = vehicle_id;
+        }
+      }
+    }
+    if(vehicle_d < 12 && vehicle_d > 8) //Right lane
+    {
+      double vehicle_id    = sensor_fusion[i][0];
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle
+      if(vehicle_s > ego_vehicle[4])
+      {
+        // Check the vehicle is the slowest one of its lane
+        if(vehicle_speed<speed_slowest_right)
+        {
+          speed_slowest_right = vehicle_speed;
+          id_slowest_right = vehicle_id;
+        }
+      }
+    }
+
+  }
+  velocity_cost[0] = VELOCITY_COST_GAIN * (TARGET_VEL - speed_slowest_left);
+  velocity_cost[1] = VELOCITY_COST_GAIN * (TARGET_VEL - speed_slowest_center);
+  velocity_cost[2] = VELOCITY_COST_GAIN * (TARGET_VEL - speed_slowest_right);
+  return velocity_cost;
+}
+
+// Cost function for distance, i.e vote for safe lane
+vector<double> distCostForLanes(const vector<double> &ego_vehicle, 
+                         const vector<vector<double>> &sensor_fusion,
+                         const int prev_size)
+{
+  // Close vehicles on the lanes
+  double id_close_right;
+  double id_close_center;
+  double id_close_left;
+
+  double dist_close_right  = SAFE_DIST;
+  double dist_close_center = SAFE_DIST;
+  double dist_close_left   = SAFE_DIST; 
+
+  // Cost for distance for each lane
+  vector<double> dist_cost{0.0, 0.0, 0.0}; // {left_lane, center_lane, right_lane}
+
+  for(int i = 0; i < sensor_fusion.size(); i++)
+  {
+    double vehicle_d = sensor_fusion[i][6];
+    // Determine the lane of vehicle
+    if(vehicle_d < 4 && vehicle_d > 0) //Left lane
+    {
+      double vehicle_id    = sensor_fusion[i][0];
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle
+      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < SAFE_DIST))
+      {
+        double dist_left = vehicle_s - ego_vehicle[4];
+        // Check the vehicle is the close one of its lane
+        if(dist_left<dist_close_left)
+        {
+          dist_close_left = dist_left;
+          id_close_left   = vehicle_id;
+        }
+      }
+    }
+    if(vehicle_d < 8 && vehicle_d > 4) //Center lane
+    {
+      double vehicle_id    = sensor_fusion[i][0];
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle
+      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < SAFE_DIST))
+      {
+        double dist_center = vehicle_s - ego_vehicle[4];
+        // Check the vehicle is the close one of its lane
+        if(dist_center<dist_close_center)
+        {
+          dist_close_center = dist_center;
+          id_close_center   = vehicle_id;
+        }
+      }
+    }
+    if(vehicle_d < 12 && vehicle_d > 8) //Right lane
+    {
+      double vehicle_id    = sensor_fusion[i][0];
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle
+      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < SAFE_DIST))
+      {
+        double dist_right = vehicle_s - ego_vehicle[4];
+        // Check the vehicle is the close one of its lane
+        if(dist_right<dist_close_right)
+        {
+          dist_close_right = dist_right;
+          id_close_right   = vehicle_id;
+        }
+      }
+    }
+
+  }
+  dist_cost[0] = DIST_COST_GAIN * (SAFE_DIST - dist_close_left);
+  dist_cost[1] = DIST_COST_GAIN * (SAFE_DIST - dist_close_center);
+  dist_cost[2] = DIST_COST_GAIN * (SAFE_DIST - dist_close_right);
+  return dist_cost;
 }
 #endif  // HELPERS_H

@@ -117,7 +117,7 @@ int main() {
           // Get adjusted velocity for avoiding collision
           vector<double> ego_vehicle = {car_x, car_y, car_yaw, car_speed, car_s, car_d, lane_ego};
           
-          double adjusted_vel = adjustEgoTargetVel(ego_vehicle, sensor_fusion, prev_size, TARGET_VEL);
+          double adjusted_vel = adjustEgoTargetVel(ego_vehicle, sensor_fusion, prev_size);
           std::cout << lane_ego << std::endl;
           // Adjust ego speed according to predictions
           if(adjusted_vel < ref_vel)
@@ -128,7 +128,25 @@ int main() {
           {
             ref_vel += ACC_LIM * 0.02; //Increase reference velocity according to deceleration limt (-10 m/s^2)
           }
-          std::cout << ref_vel << std::endl;
+
+          // BEHAVIOUR PLANNING
+
+          // Calculate costs for the lanes
+          vector<double> velocity_cost = speedCostForLanes(ego_vehicle, sensor_fusion, prev_size);
+          vector<double> dist_cost = distCostForLanes(ego_vehicle, sensor_fusion, prev_size);
+          vector<double> total_cost{0.0, 0.0, 0.0};
+          for(int i = 0; i < MAX_LANE; ++i)
+          {
+            total_cost[i] = velocity_cost[i] + dist_cost[i];
+          }
+          // Find minimum cost lane
+          vector<double>::iterator cost_iterator = std::min_element(total_cost.begin(), total_cost.end());
+          int min_cost_lane = std::distance(total_cost.begin(), cost_iterator);
+          
+          // Set ego lane to the lowest cost lane
+          lane_ego = static_cast<double>(min_cost_lane);
+
+          std::cout << lane_ego << std::endl;
           // TRAJECTORY GENERATION
           // Spline x-y coordinates
           vector<double> splinepts_x;
