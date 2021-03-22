@@ -37,6 +37,8 @@ int main() {
   double lane_ego = 1.0;
   // Define a target velocity for ego
   double ref_vel = 0.0; //m/s
+  // Define lane change counter
+  vector<int> lc_counter{0, 0, 0};
 
   string line;
   while (getline(in_map_, line)) {
@@ -58,7 +60,7 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&lane_ego, &ref_vel,
+  h.onMessage([&lane_ego, &ref_vel, &lc_counter,
                &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -143,10 +145,31 @@ int main() {
           vector<double>::iterator cost_iterator = std::min_element(total_cost.begin(), total_cost.end());
           int min_cost_lane = std::distance(total_cost.begin(), cost_iterator);
           
-          // Set ego lane to the lowest cost lane
-          lane_ego = static_cast<double>(min_cost_lane);
+          // State machine
+          if(isVehicleAhead(ego_vehicle, sensor_fusion, prev_size))
+          {
+            if(isLaneSafe(ego_vehicle, sensor_fusion, prev_size, min_cost_lane))
+            {
+              if(isLaneNear(ego_vehicle, min_cost_lane))
+              {
+                lc_counter[min_cost_lane] += 1;
+              }
+              else
+                lc_counter = {0, 0, 0};
+            }
+            else
+              lc_counter = {0, 0, 0};
+          }
 
-          std::cout << lane_ego << std::endl;
+          for(int i = 0; i < MAX_LANE; ++i)
+          {
+            if(lc_counter[i] >= 100)
+            {
+              lane_ego = i;
+              lc_counter = {0, 0, 0};
+            }
+          }
+          std::cout << min_cost_lane << std::endl;
           // TRAJECTORY GENERATION
           // Spline x-y coordinates
           vector<double> splinepts_x;

@@ -14,7 +14,10 @@
 #define ACC_LIM 10
 
 /** @brief Safe distance to avoid collision */
-#define SAFE_DIST 30
+#define SAFE_DIST 40
+
+/** @brief Safe distance for lane change */
+#define CLEAR_DIST 100
 
 /** @brief Penalty for slow lane */
 #define VELOCITY_COST_GAIN 1e3

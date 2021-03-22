@@ -367,4 +367,72 @@ vector<double> distCostForLanes(const vector<double> &ego_vehicle,
   dist_cost[2] = DIST_COST_GAIN * (SAFE_DIST - dist_close_right);
   return dist_cost;
 }
+
+// Check Lane is safe for lane change
+bool isLaneSafe(const vector<double> &ego_vehicle, 
+                         const vector<vector<double>> &sensor_fusion,
+                         const int prev_size, const int lane)
+{
+  for(int i = 0; i < sensor_fusion.size(); i++)
+  {
+    double vehicle_d = sensor_fusion[i][6]; //Other vehicles d location
+    // Check another car exist in specified lane
+    if(vehicle_d < (lane*4) && vehicle_d > (lane*4+4))
+    {
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+
+      // Safety check
+      if(std::abs(vehicle_s - ego_vehicle[4]) < CLEAR_DIST)
+      {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Prevent double lane change
+bool isLaneNear(const vector<double> &ego_vehicle, const int lane)
+{
+  if(std::abs(ego_vehicle[6] - lane) > 1)
+    return false;
+  else
+    return true;
+
+}
+
+// Prevent lane change if there is no vehicle in front of us up to safe distance
+bool isVehicleAhead(const vector<double> &ego_vehicle,
+                    const vector<vector<double>> &sensor_fusion,
+                    const int prev_size)
+{
+  for(int i = 0; i < sensor_fusion.size(); i++)
+  {
+    double vehicle_d = sensor_fusion[i][6]; //Other vehicles d location
+    // Check another car exist in ego lane
+    if(vehicle_d < (2+ego_vehicle[6]*4+2) && vehicle_d > (2+ego_vehicle[6]*4-2))
+    {
+      double vehicle_vx    = sensor_fusion[i][3];
+      double vehicle_vy    = sensor_fusion[i][4];
+      double vehicle_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+      double vehicle_s     = sensor_fusion[i][5];
+      
+      // Predict vehicle s coordinate using constant speed assumption
+      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+
+      // Check the vehicle which is in the ego lane s value grater than ego vehicle and less than safe distance
+      if(vehicle_s > ego_vehicle[4] && (vehicle_s - ego_vehicle[4] < SAFE_DIST))
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 #endif  // HELPERS_H
