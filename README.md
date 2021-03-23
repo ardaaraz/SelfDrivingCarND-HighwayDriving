@@ -1,5 +1,12 @@
 # CarND-Path-Planning-Project
-In this project, a Path Planner is designed in order to generate smooth, comfortable and collision-free paths for highway driving of autonomous vehicle. Designed Path Planner composed of two main susbsystems: Behavior Planner & Trajectory Generator.
+
+[//]: # (Image References)
+
+[image1]: ./Result.png "Result"
+
+In this project, a Path Planner is designed in order to generate smooth, comfortable and collision-free paths for highway driving of autonomous vehicle. Designed Path Planner composed of two main susbsystems: Behavior Planner & Trajectory Generator. The image below shows an instance of highway driving without collision.
+
+![Result][image1]
 
 ## Behavior Planner
 This subsystem is responsible for determining states of ego vehicle like adaptive lane keeping, lane keeping or lane change. In order to decide ego vehicle states, different cost functions are calculated for all lanes by considering its distance from center lane, distance between ego vehicle and nearest vehicle other lanes and lane flow speed. To generate collision-free lane change, double lane change is restricted and safety check for the target lane is performed. 
