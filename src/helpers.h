@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string>
 #include <vector>
+#include <iostream>
 #include "param.h"
 
 // for convenience
@@ -385,13 +386,18 @@ bool isLaneSafe(const vector<double> &ego_vehicle,
       double vehicle_s     = sensor_fusion[i][5];
       
       // Predict vehicle s coordinate using constant speed assumption
-      vehicle_s += ((double)prev_size*0.02*vehicle_speed);
+      // vehicle_s += ((double)prev_size*0.02*vehicle_speed);
 
       // Safety check
-      if(std::abs(vehicle_s - ego_vehicle[4]) < CLEAR_DIST)
+      if(vehicle_s - ego_vehicle[4] < CLEAR_DIST && vehicle_s - ego_vehicle[4] > 0)
       {
         return false;
       }
+      else if (ego_vehicle[4] - vehicle_s < CLEAR_DIST && vehicle_s - ego_vehicle[4] < 0)
+      {
+        return false;
+      }
+      
     }
   }
   return true;

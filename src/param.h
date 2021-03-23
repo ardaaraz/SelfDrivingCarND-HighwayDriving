@@ -23,6 +23,9 @@
 #define VELOCITY_COST_GAIN 1e3
 
 /** @brief Penalty for distance between vehicles lane */
-#define DIST_COST_GAIN 1e4
+#define DIST_COST_GAIN 5e4
+
+/** @brief Penalty for distance from center lane */
+#define CENTER_COST_GAIN 1e4
 
 #endif

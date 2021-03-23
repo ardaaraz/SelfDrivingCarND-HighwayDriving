@@ -120,7 +120,6 @@ int main() {
           vector<double> ego_vehicle = {car_x, car_y, car_yaw, car_speed, car_s, car_d, lane_ego};
           
           double adjusted_vel = adjustEgoTargetVel(ego_vehicle, sensor_fusion, prev_size);
-          std::cout << lane_ego << std::endl;
           // Adjust ego speed according to predictions
           if(adjusted_vel < ref_vel)
           {
@@ -136,17 +135,41 @@ int main() {
           // Calculate costs for the lanes
           vector<double> velocity_cost = speedCostForLanes(ego_vehicle, sensor_fusion, prev_size);
           vector<double> dist_cost = distCostForLanes(ego_vehicle, sensor_fusion, prev_size);
+          vector<double> center_cost{CENTER_COST_GAIN, 0.0, CENTER_COST_GAIN};
           vector<double> total_cost{0.0, 0.0, 0.0};
           for(int i = 0; i < MAX_LANE; ++i)
           {
-            total_cost[i] = velocity_cost[i] + dist_cost[i];
+            total_cost[i] = velocity_cost[i] + dist_cost[i] + center_cost[i];
           }
           // Find minimum cost lane
           vector<double>::iterator cost_iterator = std::min_element(total_cost.begin(), total_cost.end());
           int min_cost_lane = std::distance(total_cost.begin(), cost_iterator);
           
           // State machine
-          if(isVehicleAhead(ego_vehicle, sensor_fusion, prev_size))
+          // If the ego vehicle in center lane, check there is another vehicle in front of us for lane change
+          if(lane_ego == 1)
+          {
+            if(isVehicleAhead(ego_vehicle, sensor_fusion, prev_size))
+            {
+              if(isLaneSafe(ego_vehicle, sensor_fusion, prev_size, min_cost_lane))
+              {
+                if(isLaneNear(ego_vehicle, min_cost_lane))
+                {
+                  lc_counter[min_cost_lane] += 1;
+                }
+                else
+                {
+                  // lc_counter = {0, 0, 0};
+                }
+              }
+              else
+              {
+                lc_counter = {0, 0, 0};
+              }
+            }
+          }
+          // If the ego vehicle is not in center lane, direct ego vehicle to the center lane if it is possible
+          else
           {
             if(isLaneSafe(ego_vehicle, sensor_fusion, prev_size, min_cost_lane))
             {
@@ -155,12 +178,16 @@ int main() {
                 lc_counter[min_cost_lane] += 1;
               }
               else
-                lc_counter = {0, 0, 0};
+              {
+                // lc_counter = {0, 0, 0};
+              }
             }
             else
+            {
               lc_counter = {0, 0, 0};
+            }
           }
-
+          // Check counter for lane change (i.e. watch the min_cost_lane for 100 time step)
           for(int i = 0; i < MAX_LANE; ++i)
           {
             if(lc_counter[i] >= 100)
@@ -169,7 +196,7 @@ int main() {
               lc_counter = {0, 0, 0};
             }
           }
-          std::cout << min_cost_lane << std::endl;
+
           // TRAJECTORY GENERATION
           // Spline x-y coordinates
           vector<double> splinepts_x;
