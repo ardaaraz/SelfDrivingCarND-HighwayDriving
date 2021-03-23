@@ -1,6 +1,16 @@
 # CarND-Path-Planning-Project
-Self-Driving Car Engineer Nanodegree Program
-   
+In this project, a Path Planner is designed in order to generate smooth, comfortable and collision-free paths for highway driving of autonomous vehicle. Designed Path Planner composed of two main susbsystems: Behavior Planner & Trajectory Generator.
+
+## Behavior Planner
+This subsystem is responsible for determining states of ego vehicle like adaptive lane keeping, lane keeping or lane change. In order to decide ego vehicle states, different cost functions are calculated for all lanes by considering its distance from center lane, distance between ego vehicle and nearest vehicle other lanes and lane flow speed. To generate collision-free lane change, double lane change is restricted and safety check for the target lane is performed. 
+
+## Trajectory Generator
+This subsystem is responsible for determining waypoints of trajectory which guarentees smooth driving, i.e. limiting acceleration and jerk of the ego vehicle. In order to generate trajectory of the ego vehicle, spline fitting method is used. Five anchor points of the spline are determined by consediring both previous path of ego vehicle (two prior points) and equally spaced waypoints which are 30m, 60m, and 90m ahead of the ego vehicle (three posterior points). After fitting spline, waypoints of trajectory are generated until 30 m ahead from ego vehicle.
+
+--
+
+## Udacity Project Instructions
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
 
